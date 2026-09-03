@@ -1,0 +1,24 @@
+{
+  "display_name": "yt-core-http",
+  "language": "C++",
+  "engine": "yt/yt/core/http",
+  "type": "flagship",
+  "mode": "standard",
+  "completeness": {
+    "routing": false,
+    "middleware": false,
+    "request": false,
+    "response": false
+  },
+  "description": "The HTTP/1.1 server from yt/yt/core/http, YTsaurus's own C++ networking library, on its thread-pool poller with one thread per core. This is the exact server every YTsaurus master, proxy, scheduler and node runs its monitoring/API endpoints on in production. Routing is method-agnostic path matching (exact or trailing-slash prefix, no named path parameters), the request body is drained with the async zero-copy input stream, and the response is built by mutating a writer (SetStatus + header map + WriteBody) rather than declared in one call.",
+  "repo": "https://github.com/ytsaurus/ytsaurus",
+  "enabled": true,
+  "tests": [
+    "baseline",
+    "latency-1m",
+    "latency-10k",
+    "pipelined",
+    "limited-conn"
+  ],
+  "maintainers": []
+}
