@@ -19,7 +19,8 @@
     "latency-10k",
     "pipelined",
     "limited-conn",
-    "json-comp"
+    "json-comp",
+    "json-tls"
   ],
   "maintainers": []
 }

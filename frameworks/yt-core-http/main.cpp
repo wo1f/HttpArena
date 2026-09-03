@@ -4,6 +4,11 @@
 #include <yt/yt/core/http/helpers.h>
 #include <yt/yt/core/http/compression.h>
 
+#include <yt/yt/core/https/server.h>
+#include <yt/yt/core/https/config.h>
+
+#include <yt/yt/core/crypto/config.h>
+
 #include <yt/yt/core/json/json_writer.h>
 
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
@@ -22,6 +27,7 @@
 #include <charconv>
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <span>
 #include <sstream>
@@ -292,9 +298,6 @@ int main()
 {
     Dataset = LoadDataset();
 
-    auto config = New<TServerConfig>();
-    config->Port = 8080;
-
     // One poller thread per core: this is the server's own thread pool and
     // invoker, matching the "framework standard configuration" rule for the
     // standard-mode profiles this entry subscribes to.
@@ -303,13 +306,42 @@ int main()
         threadCount = 1;
     }
 
+    // Shared by both listeners below (SetPathMatcher requires it be set
+    // before Start(), and built exactly once so nothing mutates it once
+    // either server is running).
+    auto pathMatcher = New<TRequestPathMatcher>();
+    pathMatcher->Add("/pipeline", BIND(&HandlePipeline));
+    pathMatcher->Add("/baseline11", BIND(&HandleBaseline11));
+    pathMatcher->Add("/json/", BIND(&HandleJson));
+
+    auto config = New<TServerConfig>();
+    config->Port = 8080;
+
     auto server = CreateServer(config, static_cast<int>(threadCount));
-
-    server->AddHandler("/pipeline", BIND(&HandlePipeline));
-    server->AddHandler("/baseline11", BIND(&HandleBaseline11));
-    server->AddHandler("/json/", BIND(&HandleJson));
-
+    server->SetPathMatcher(pathMatcher);
     server->Start();
+
+    // The TLS listener is only stood up when the harness actually mounts
+    // /certs (only for TLS-subscribed profiles), same guard drogon's entry
+    // uses. Declared outside the if so it outlives it -- IServerPtr held
+    // only in a block-scoped local is destroyed the instant the block
+    // exits, tearing down the whole listener before any client can
+    // connect (the listening socket lingers just long enough for one
+    // connection to be accepted and then immediately orphaned).
+    IServerPtr httpsServer;
+    const std::string certFile = "/certs/server.crt";
+    const std::string keyFile = "/certs/server.key";
+    if (std::filesystem::exists(certFile) && std::filesystem::exists(keyFile)) {
+        auto httpsConfig = New<NHttps::TServerConfig>();
+        httpsConfig->Port = 8081;
+        httpsConfig->Credentials = New<NHttps::TServerCredentialsConfig>();
+        httpsConfig->Credentials->CertificateChain = NCrypto::TPemBlobConfig::CreateFileReference(certFile);
+        httpsConfig->Credentials->PrivateKey = NCrypto::TPemBlobConfig::CreateFileReference(keyFile);
+
+        httpsServer = NHttps::CreateServer(httpsConfig, static_cast<int>(threadCount));
+        httpsServer->SetPathMatcher(pathMatcher);
+        httpsServer->Start();
+    }
 
     while (true) {
         std::this_thread::sleep_for(std::chrono::hours(24));

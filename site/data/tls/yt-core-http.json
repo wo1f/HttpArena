@@ -1,0 +1,5 @@
+{
+  "framework": "yt-core-http",
+  "tls": "pass",
+  "check": "none"
+}

@@ -15,7 +15,9 @@ The HTTP server from [`yt/yt/core/http`](https://github.com/ytsaurus/ytsaurus/tr
 | `/pipeline` | GET | Returns `ok` (plain text) |
 | `/baseline11` | GET | Sums query parameter values |
 | `/baseline11` | POST | Sums query parameters + request body |
-| `/json/{count}?m=N` | GET | First `count` dataset items with `total = price * quantity * m`; compressed with gzip/br when `Accept-Encoding` asks for it |
+| `/json/{count}?m=N` | GET | First `count` dataset items with `total = price * quantity * m`; compressed with gzip/br when `Accept-Encoding` asks for it. Served on both port 8080 (plaintext) and 8081 (TLS, HTTP/1.1 only) |
+
+The TLS listener on port 8081 only starts when `/certs/server.crt` and `/certs/server.key` are present (mounted only for TLS-subscribed profiles).
 
 ## Notes
 
@@ -27,6 +29,7 @@ The HTTP server from [`yt/yt/core/http`](https://github.com/ytsaurus/ytsaurus/tr
 - `/json/{count}` has no named path parameter either -- `{count}` is parsed out of `IRequest::GetUrl().Path` by hand, the same way the query string is.
 - JSON is built with `NYT::NJson::CreateJsonConsumer` (a YSON-consumer bridge, the same one `helpers.h`'s `ReplyJson` uses internally) driven through `NYT::NYTree::BuildYsonFluently`; the dataset itself is parsed once at startup with `library/cpp/json`'s own DOM reader, a separate library.
 - Compression is `http/compression.h`'s `CreateCompressingAdapter`, which wraps the response writer directly (it is itself a flushable async output stream) -- gzip/br chosen per request via `GetBestAcceptedContentEncoding`, and `Content-Encoding` only set when the client actually asked for one.
+- TLS is `NHttps::CreateServer` (`yt/yt/core/https`) on its own `TServerConfig` with `Credentials` pointing at the mounted cert/key. It shares the same `TRequestPathMatcher` as the plaintext server (`IServer::SetPathMatcher`) rather than registering every handler twice. `NCrypto::TSslContext` sets no ALPN callback at all, so the server never advertises one -- correct for an HTTP/1.1-only listener. Protocol range is hardcoded in the library to TLS 1.2-1.3 (`SSL_CTX_set_min/max_proto_version`), so a TLS 1.3 client gets 1.3.
 
 ## Completeness
 
@@ -35,6 +38,8 @@ Declared as `false` on all four axes in `meta.json`:
 - **Routing** -- no path parameters, see above.
 - **Middleware** -- no composable pipeline; the closest thing is `CreateErrorWrappingHttpHandler`, a single fixed wrapper, not an ordered chain.
 - **Request** -- no query-parameter or header convenience beyond the raw strings; the body is a stream you drain yourself.
-- **Response** -- built by mutating `IResponseWriter` across three calls, not declared in one.
+- **Response** -- built by mutating `IResponseWriter` across separate calls, not declared in one call.
 
-This entry only exercises the connection-throughput profiles (`baseline`, `pipelined`, `limited-conn`, `latency-1m`, `latency-10k`), so `completeness` is scored but review is welcome if a reader thinks one of these axes should read differently for this library.
+Worth a second look now that `/json` exists: `ReplyJson` (and the `BuildJsonBody`/`CreateJsonConsumer` path this entry actually uses) sets `Content-Type`, serializes and writes the body all from one function call, which reads closer to "declared" than the plain-text handlers' `SetStatus` + `GetHeaders()->Set` + `WriteBody` sequence. Left as `false` here since status still isn't part of that call and the compressed path has to fall out of it entirely to interpose `CreateCompressingAdapter` -- but this is exactly the kind of judgment call the docs expect a reviewer to weigh in on, not something to self-certify.
+
+This entry exercises `baseline`, `pipelined`, `limited-conn`, `latency-1m`, `latency-10k`, `json-comp` and `json-tls`.

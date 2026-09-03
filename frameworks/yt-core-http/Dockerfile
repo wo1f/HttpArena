@@ -93,5 +93,5 @@ RUN mkdir -p /workspace/build && cd /workspace/build \
 # `ldd` on the built binary shows just libc.so.6 and libm.so.6.
 FROM ubuntu:24.04
 COPY --from=build /workspace/build/httparena/httparena-yt-core-http /server
-EXPOSE 8080
+EXPOSE 8080 8081
 CMD ["/server"]
