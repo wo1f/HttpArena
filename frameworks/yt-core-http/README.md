@@ -15,6 +15,7 @@ The HTTP server from [`yt/yt/core/http`](https://github.com/ytsaurus/ytsaurus/tr
 | `/pipeline` | GET | Returns `ok` (plain text) |
 | `/baseline11` | GET | Sums query parameter values |
 | `/baseline11` | POST | Sums query parameters + request body |
+| `/json/{count}?m=N` | GET | First `count` dataset items with `total = price * quantity * m`; compressed with gzip/br when `Accept-Encoding` asks for it |
 
 ## Notes
 
@@ -22,7 +23,10 @@ The HTTP server from [`yt/yt/core/http`](https://github.com/ytsaurus/ytsaurus/tr
 - Routing is `IServer::AddHandler(pattern, ...)`. Matching is copied from Go's old (pre-1.22) `ServeMux` semantics: exact match or trailing-slash prefix, no named path parameters -- there is nothing to extract `{count}` from, so an entry using this library for a parameterized route has to parse the path itself.
 - The request body is drained with `IRequest::ReadAll()` (the library's own extension method on its async zero-copy input stream), which already handles both `Content-Length` and chunked `Transfer-Encoding` framing.
 - The response is built procedurally -- `SetStatus`, then `GetHeaders()->Set(...)`, then `WriteBody(...)` -- rather than declared in one call.
-- Query parameters are parsed by hand (`SumQueryParameters` in `main.cpp`) since the library hands back only the raw query string (`IRequest::GetUrl().RawQuery`).
+- Query parameters are parsed by hand (`SumQueryParameters`/`FindQueryParameter` in `main.cpp`) since the library hands back only the raw query string (`IRequest::GetUrl().RawQuery`).
+- `/json/{count}` has no named path parameter either -- `{count}` is parsed out of `IRequest::GetUrl().Path` by hand, the same way the query string is.
+- JSON is built with `NYT::NJson::CreateJsonConsumer` (a YSON-consumer bridge, the same one `helpers.h`'s `ReplyJson` uses internally) driven through `NYT::NYTree::BuildYsonFluently`; the dataset itself is parsed once at startup with `library/cpp/json`'s own DOM reader, a separate library.
+- Compression is `http/compression.h`'s `CreateCompressingAdapter`, which wraps the response writer directly (it is itself a flushable async output stream) -- gzip/br chosen per request via `GetBestAcceptedContentEncoding`, and `Content-Encoding` only set when the client actually asked for one.
 
 ## Completeness
 

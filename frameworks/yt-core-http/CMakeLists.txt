@@ -6,6 +6,7 @@ add_executable(httparena-yt-core-http main.cpp)
 
 target_link_libraries(httparena-yt-core-http PRIVATE
   yt-core-http
+  library-cpp-json
   build-cow-on
 )
 

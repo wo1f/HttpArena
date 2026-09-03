@@ -18,7 +18,8 @@
     "latency-1m",
     "latency-10k",
     "pipelined",
-    "limited-conn"
+    "limited-conn",
+    "json-comp"
   ],
   "maintainers": []
 }
