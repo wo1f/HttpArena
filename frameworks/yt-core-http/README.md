@@ -16,6 +16,7 @@ The HTTP server from [`yt/yt/core/http`](https://github.com/ytsaurus/ytsaurus/tr
 | `/baseline11` | GET | Sums query parameter values |
 | `/baseline11` | POST | Sums query parameters + request body |
 | `/json/{count}?m=N` | GET | First `count` dataset items with `total = price * quantity * m`; compressed with gzip/br when `Accept-Encoding` asks for it. Served on both port 8080 (plaintext) and 8081 (TLS, HTTP/1.1 only) |
+| `/echo` | POST | Returns the request body back verbatim, read through `ReadAll()` (Content-Length or chunked). Served on both port 8080 and 8081 |
 
 The TLS listener on port 8081 only starts when `/certs/server.crt` and `/certs/server.key` are present (mounted only for TLS-subscribed profiles).
 
@@ -42,4 +43,4 @@ Declared as `false` on all four axes in `meta.json`:
 
 Worth a second look now that `/json` exists: `ReplyJson` (and the `BuildJsonBody`/`CreateJsonConsumer` path this entry actually uses) sets `Content-Type`, serializes and writes the body all from one function call, which reads closer to "declared" than the plain-text handlers' `SetStatus` + `GetHeaders()->Set` + `WriteBody` sequence. Left as `false` here since status still isn't part of that call and the compressed path has to fall out of it entirely to interpose `CreateCompressingAdapter` -- but this is exactly the kind of judgment call the docs expect a reviewer to weigh in on, not something to self-certify.
 
-This entry exercises `baseline`, `pipelined`, `limited-conn`, `latency-1m`, `latency-10k`, `json-comp` and `json-tls`.
+This entry exercises `baseline`, `pipelined`, `limited-conn`, `latency-1m`, `latency-10k`, `json-comp`, `json-tls` and `8gbit`.

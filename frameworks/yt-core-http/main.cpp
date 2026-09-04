@@ -292,6 +292,22 @@ void HandleJson(const IRequestPtr& req, const IResponseWriterPtr& rsp)
     }
 }
 
+// ---- POST /echo ----
+//
+// Reads the whole body through the framework's standard stream API and
+// writes the same bytes back. ReadAll() already handles both
+// Content-Length and chunked framing, and genuinely reads before
+// answering -- no Content-Length-sized canned response.
+void HandleEcho(const IRequestPtr& req, const IResponseWriterPtr& rsp)
+{
+    auto body = req->ReadAll();
+
+    rsp->SetStatus(EStatusCode::OK);
+    rsp->GetHeaders()->Set(NHeaders::ContentTypeHeaderName, "application/octet-stream");
+    WaitFor(rsp->WriteBody(body))
+        .ThrowOnError();
+}
+
 } // namespace
 
 int main()
@@ -313,6 +329,7 @@ int main()
     pathMatcher->Add("/pipeline", BIND(&HandlePipeline));
     pathMatcher->Add("/baseline11", BIND(&HandleBaseline11));
     pathMatcher->Add("/json/", BIND(&HandleJson));
+    pathMatcher->Add("/echo", BIND(&HandleEcho));
 
     auto config = New<TServerConfig>();
     config->Port = 8080;
