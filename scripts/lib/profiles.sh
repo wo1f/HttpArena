@@ -100,6 +100,16 @@ declare -A PROFILES=(
     [echo-ws-limited]="1|10|0-31,64-95|512,4096|ws-echo"
 )
 
+# Snapshot of every real profile name, independent of any driver's PROFILES
+# override. benchmark-lite.sh replaces PROFILES wholesale with a reduced
+# dispatch subset (it intentionally skips json-tls, static-tls, gateway-64,
+# ...) — framework_validate_tests() checks meta.json's `tests` list against
+# ALL_PROFILES instead so a framework isn't rejected as subscribing to an
+# "unknown" profile just because the *current driver* doesn't implement it.
+declare -A ALL_PROFILES=()
+for _p in "${!PROFILES[@]}"; do ALL_PROFILES[$_p]=1; done
+unset _p
+
 PROFILE_ORDER=(
     baseline pipelined limited-conn
     json-comp json-tls

@@ -40,16 +40,21 @@ import json; print(','.join(json.load(open('$meta_file')).get('tests', [])))" 2>
 # framework quietly loses that coverage on every run since the typo landed.
 # `php` lost json-tls to "json-lts" this way. Fail loudly instead.
 #
-# PROFILES comes from profiles.sh, which is sourced *after* this file — that's
-# fine, the name resolves when this runs, not when the file is sourced.
+# ALL_PROFILES comes from profiles.sh, which is sourced *after* this file —
+# that's fine, the name resolves when this runs, not when the file is
+# sourced. It's a fixed snapshot of every real profile name, checked
+# separately from PROFILES because some drivers (benchmark-lite.sh) replace
+# PROFILES itself with a reduced dispatch subset — validating against that
+# would reject a framework for subscribing to a profile that is perfectly
+# real but simply unimplemented by the current driver.
 framework_validate_tests() {
     local t unknown=()
     for t in ${FRAMEWORK_TESTS//,/ }; do
-        [ -n "${PROFILES[$t]+x}" ] || unknown+=("$t")
+        [ -n "${ALL_PROFILES[$t]+x}" ] || unknown+=("$t")
     done
     [ ${#unknown[@]} -eq 0 ] || fail \
 "$FRAMEWORK/meta.json subscribes to unknown profile(s): ${unknown[*]}
-       known profiles: $(printf '%s\n' "${!PROFILES[@]}" | sort | tr '\n' ' ')"
+       known profiles: $(printf '%s\n' "${!ALL_PROFILES[@]}" | sort | tr '\n' ' ')"
 }
 
 framework_subscribes_to() {
