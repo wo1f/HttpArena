@@ -278,13 +278,17 @@ void HandleJson(const IRequestPtr& req, const IResponseWriterPtr& rsp)
         rsp->GetHeaders()->Set("Content-Encoding", contentEncoding);
         // CreateCompressingAdapter wraps rsp itself (IResponseWriter is-a
         // IFlushableAsyncOutputStream): Write pushes compressed chunks
-        // straight into the response, and Close both finishes the codec
-        // and closes rsp, framing the response as chunked since no
-        // Content-Length is known ahead of time.
+        // straight into the response. Closing the adapter only finishes
+        // the codec (flushes the trailing compressed bytes) -- it does
+        // NOT close rsp, so the terminating chunk must be sent with an
+        // explicit rsp->Close(), matching how CreateCompressingAdapter is
+        // used in yt/yt/core/http/unittests/http_ut.cpp.
         auto compressingStream = CreateCompressingAdapter(rsp, contentEncoding, GetCurrentInvoker());
         WaitFor(compressingStream->Write(TSharedRef::FromString(body)))
             .ThrowOnError();
         WaitFor(compressingStream->Close())
+            .ThrowOnError();
+        WaitFor(rsp->Close())
             .ThrowOnError();
     } else {
         WaitFor(rsp->WriteBody(TSharedRef::FromString(body)))
